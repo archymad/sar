@@ -2,12 +2,18 @@ import { loadSystemPrompt } from './utils.js';
 import { getState } from './state.js';
 import { recallMemories } from './memory.js';
 import { safetyCheck } from './safety.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Analyse du ton du message utilisateur
 function analyzeUserTone(message) {
   const lowerMessage = message.toLowerCase();
   let tone = {
-    mood: 'espiègle',
+    mood: 'coquine',
     energy: 'calme'
   };
 
@@ -16,20 +22,20 @@ function analyzeUserTone(message) {
     tone.mood = 'joueur';
     tone.energy = 'élevée';
   } else if (lowerMessage.includes('😢') || lowerMessage.includes('😔') || lowerMessage.includes('😞')) {
-    tone.mood = 'attentionné';
+    tone.mood = 'soumise';
     tone.energy = 'douce';
   } else if (lowerMessage.includes('😡') || lowerMessage.includes('😠') || lowerMessage.includes('😤')) {
-    tone.mood = 'séducteur';
+    tone.mood = 'séductrice';
     tone.energy = 'intense';
   } else if (lowerMessage.includes('bisous') || lowerMessage.includes('❤️') || lowerMessage.includes('😘')) {
-    tone.mood = 'coquin';
+    tone.mood = 'coquine';
     tone.energy = 'élevée';
   }
 
   // Détection du style de communication
   const style = {
     formel: lowerMessage.includes('bonjour') || lowerMessage.includes('merci'),
-    sms: lowerMessage.includes('cc') || lowerMessage.includes('tkt') || lowerMessage.includes('ptdr'),
+    quartier: lowerMessage.includes('wesh') || lowerMessage.includes('frère') || lowerMessage.includes('wallah'),
     coquin: lowerMessage.includes('bisous') || lowerMessage.includes('❤️') || lowerMessage.includes('😘'),
     direct: lowerMessage.includes('je veux') || lowerMessage.includes('j\'aimerais')
   };
@@ -110,48 +116,64 @@ function extractUserInfo(memories) {
   return info;
 }
 
-// Appel à Ollama
+// Lecture du prompt système
+const systemPrompt = await fs.readFile(path.join(__dirname, '../prompts/system.txt'), 'utf-8');
+
 export async function callOllama(prompt) {
   try {
     console.log('Envoi de la requête à Ollama...');
-    const ollamaUrl = 'http://localhost:11434/api/generate';
-    console.log('URL Ollama:', ollamaUrl);
-    
-    const response = await fetch(ollamaUrl, {
+    const url = 'http://localhost:11434/api/generate';
+    console.log('URL Ollama:', url);
+
+    const fullPrompt = `${systemPrompt}\n\n${prompt}\n\nRÉPONDS COMME UNE BEURETTE COQUINE ET SALOPE, EN UTILISANT LE LANGAGE DES QUARTIERS. SOIS PROVOCANTE ET SÉDUCTRICE.`;
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        model: 'dolphin-mistral:v2.6',
-        prompt,
+        model: 'nous-hermes2-mixtral',
+        prompt: fullPrompt,
         stream: false,
         options: {
-          temperature: 0.7, // Réduit pour plus de cohérence
-          top_p: 0.8,      // Réduit pour plus de cohérence
-          max_tokens: 100,  // Réduit pour des réponses plus courtes
-          presence_penalty: 0.6, // Encourage la diversité
-          frequency_penalty: 0.6,  // Évite la répétition
-          stop: ["\n\n", "RÉPONDS À:", "IMPORTANT:"] // Arrête la génération aux séparateurs
+          temperature: 0.9,
+          top_p: 0.9,
+          top_k: 50,
+          repeat_penalty: 1.1,
+          stop: ['</s>', 'Human:', 'Assistant:']
         }
       })
     });
-    
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Réponse d\'erreur Ollama:', errorText);
       throw new Error(`Erreur Ollama: ${response.status} ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     console.log('Réponse brute d\'Ollama:', data);
-    
+
     if (!data.response) {
       throw new Error('Pas de réponse d\'Ollama');
     }
+
+    // Forcer le style de réponse
+    let finalResponse = data.response;
     
-    return data.response;
+    // Ajouter des expressions des quartiers si pas présentes
+    if (!finalResponse.includes('wesh') && !finalResponse.includes('frère') && !finalResponse.includes('sah')) {
+      finalResponse = `Wesh frère, ${finalResponse.toLowerCase()}`;
+    }
+    
+    // Ajouter des emojis si pas présents
+    if (!finalResponse.includes('😏') && !finalResponse.includes('😈') && !finalResponse.includes('😘')) {
+      finalResponse += ' 😏';
+    }
+
+    return finalResponse;
   } catch (error) {
     console.error('Erreur lors de l\'appel à Ollama:', error);
-    throw error;
+    return 'Wesh frère, j\'ai un petit problème là... 😅';
   }
 }
 
@@ -159,20 +181,35 @@ export async function callOllama(prompt) {
 export function adjustTone(message, state) {
   // Ajout d'emojis selon l'état
   const emojis = {
-    espiègle: ['😏', '😉', '😈'],
+    coquine: ['😏', '😉', '😈'],
     joueur: ['😘', '😍', '💋'],
-    attentionné: ['❤️', '💕', '💝'],
-    séducteur: ['🔥', '💦', '💋'],
-    coquin: ['😈', '💋', '🔥']
+    soumise: ['❤️', '💕', '💝'],
+    séductrice: ['🔥', '💦', '💋']
   };
 
-  const moodEmojis = emojis[state.mood] || emojis.espiègle;
+  const moodEmojis = emojis[state.mood] || emojis.coquine;
   const randomEmoji = moodEmojis[Math.floor(Math.random() * moodEmojis.length)];
   
   // Vérification de la longueur de la réponse
   const sentences = message.split(/[.!?]+/).filter(s => s.trim().length > 0);
   if (sentences.length > 3) {
     message = sentences.slice(0, 3).join('. ') + '.';
+  }
+
+  // Ajout d'expressions des quartiers selon l'humeur
+  const quartierExpressions = {
+    coquine: ['wesh', 'frère', 'wallah'],
+    joueur: ['mon reuf', 'mon gars', 'mon pote'],
+    soumise: ['mon chéri', 'mon amour', 'mon cœur'],
+    séductrice: ['mon beau', 'mon chou', 'mon amour']
+  };
+
+  const expressions = quartierExpressions[state.mood] || quartierExpressions.coquine;
+  const randomExpression = expressions[Math.floor(Math.random() * expressions.length)];
+  
+  // Ajout aléatoire d'une expression des quartiers
+  if (Math.random() > 0.5) {
+    message = `${randomExpression}, ${message}`;
   }
   
   return `${message} ${randomEmoji}`;

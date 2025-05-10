@@ -71,3 +71,9 @@ site/
 .cache/
 .npm/
 .eslintcache 
+
+
+chroma_db/
+
+
+##

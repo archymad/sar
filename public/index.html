@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualisation des Souvenirs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .memory-container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .memory-item {
+            border-left: 4px solid #4CAF50;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f9f9f9;
+        }
+        .memory-item[data-type="user_info"] { border-left-color: #2196F3; }
+        .memory-item[data-type="preference"] { border-left-color: #FF9800; }
+        .memory-item[data-type="affection"] { border-left-color: #E91E63; }
+        .memory-timestamp {
+            color: #666;
+            font-size: 0.8em;
+        }
+        .memory-type {
+            font-weight: bold;
+            color: #333;
+        }
+        .memory-content {
+            margin-top: 5px;
+        }
+        .refresh-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .refresh-button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Visualisation des Souvenirs</h1>
+    <button class="refresh-button" onclick="loadMemories()">Rafraîchir</button>
+    <div id="memories" class="memory-container"></div>
+
+    <script>
+        async function loadMemories() {
+            try {
+                const response = await fetch('/api/memories/default');
+                const memories = await response.json();
+                const container = document.getElementById('memories');
+                container.innerHTML = '';
+
+                memories.forEach(memory => {
+                    const div = document.createElement('div');
+                    div.className = 'memory-item';
+                    div.setAttribute('data-type', memory.type);
+
+                    const timestamp = new Date(memory.timestamp).toLocaleString();
+                    const type = memory.type.charAt(0).toUpperCase() + memory.type.slice(1);
+
+                    div.innerHTML = `
+                        <div class="memory-timestamp">${timestamp}</div>
+                        <div class="memory-type">${type}</div>
+                        <div class="memory-content">${memory.content}</div>
+                    `;
+
+                    container.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Erreur lors du chargement des souvenirs:', error);
+            }
+        }
+
+        // Charger les souvenirs au démarrage
+        loadMemories();
+        // Rafraîchir toutes les 30 secondes
+        setInterval(loadMemories, 30000);
+    </script>
+</body>
+</html> 

@@ -29,7 +29,12 @@ export async function getState(userId) {
   };
 }
 
-export async function updateState(userId, updates) {
+export async function updateState(userId, message, response) {
+  const updates = {
+    lastMessage: message,
+    lastResponse: response,
+    timestamp: Date.now()
+  };
   await redis.hSet(`state:${userId}`, updates);
 }
 
